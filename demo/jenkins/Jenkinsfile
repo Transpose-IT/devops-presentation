@@ -1,0 +1,43 @@
+pipeline {
+    // Do not checkout the repository on every step
+    options {
+        skipDefaultCheckout true
+    }
+    // Ask for user input to checkout a specific branch of the Ansible repo
+    parameters {
+        string(
+            name: 'branch', 
+            defaultValue: 'refs/heads/master', 
+            description: 'The branch or tag. Must be specified in full format, so valid values are "refs/tags/v1.5.0" or "refs/heads/hotfix/v1.5.1"'
+        )
+    }
+    // This pipeline can run on any agent
+    agent any
+    // Here start the actual stages
+    stages {
+        stage('Checkout Ansible repo') {
+            // A stage can contain one or more steps
+            steps {
+                // This is the more advanced method of checking out a git repo, which allows for checking out tags and shallow clones
+                checkout scm: [
+                    $class: 'GitSCM', 
+                    userRemoteConfigs: [[url: 'git@bitbucket.org:transposeit/presentations.git', credentialsId: 'jenkins-git']],
+                    doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
+                    extensions: [[$class: 'CloneOption', noTags: false, shallow: true, depth: 0, reference: '']],
+                    branches: [[name: "${params.branch}"]]
+                ]
+            }
+        }
+        stage('Run ansible playbook') {
+            steps {
+                // The SSH key is configured in the Jenkins credentials plugin and is injected. We override the key location as this is 
+                // injected with a random name.
+                withCredentials(bindings: [sshUserPrivateKey(credentialsId: 'jenkins-ssh', keyFileVariable: 'SSH_KEY_LOCATION')]) {
+                    dir('demo/ansible') {
+                        sh "ansible-playbook -i inventory -u azadmin --become -e \"ansible_ssh_private_key_file=$SSH_KEY_LOCATION\" playbook.yml"   
+                    }
+                }
+            }
+        }
+    }
+}

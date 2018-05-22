@@ -1,0 +1,5 @@
+[local]
+localhost           ansible_connection=local
+
+[azure]
+tidemo              ansible_connection=ssh ansible_host=51.144.22.178
